@@ -163,18 +163,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @OptIn(ExperimentalStdlibApi::class)
     private fun readNfcA(tag: Tag) {
         val nfcA = NfcA.get(tag)
         Log.e("NFC", "nfcA: $nfcA")
 
         nfcA?.let {
             nfcA.connect()
+            val id = tag.id
             val atqa = nfcA.atqa
             val sak = nfcA.sak
             nfcA.close()
 
-            Log.e("NFC", "atqa: $atqa")
-            Log.e("NFC", "sak: $sak")
+            Log.e("NFC", "id: ${id.toHexString()}")
+            Log.e("NFC", "atqa: ${atqa.toHexString()}")
+            Log.e("NFC", "sak: ${sak.toHexString()}")
         }
     }
 
@@ -223,18 +226,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @OptIn(ExperimentalStdlibApi::class)
     private fun readMifareClassic(tag: Tag) {
         val mifareClassic = MifareClassic.get(tag)
         Log.e("NFC", "mifareClassic: $mifareClassic")
 
         mifareClassic?.let {
             mifareClassic.connect()
-            val size = mifareClassic.size
-            val type = mifareClassic.type
+            val auth = mifareClassic.authenticateSectorWithKeyA(0, MifareClassic.KEY_DEFAULT)
+            Log.e("NFC", "auth: $auth")
+            if (auth) {
+                val data = mifareClassic.readBlock(0)
+                Log.e("NFC", "data: ${data.toHexString()}")
+            } else {
+                Log.e("NFC", "auth: failed")
+            }
             mifareClassic.close()
-
-            Log.e("NFC", "size: $size")
-            Log.e("NFC", "type: $type")
         }
     }
 
