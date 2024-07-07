@@ -3,10 +3,12 @@ package hz.exec.nfcard
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.IntentFilter
-import android.nfc.NdefMessage
 import android.nfc.NfcAdapter
+import android.nfc.Tag
+import android.nfc.tech.NfcA
 import android.nfc.tech.NfcF
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,16 +18,20 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.lifecycleScope
 import hz.exec.nfcard.ui.theme.NFCardTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private var nfcAdapter: NfcAdapter? = null
     private lateinit var nfcPendingIntent: PendingIntent
     private lateinit var intentFiltersArray: Array<IntentFilter>
-    private lateinit var techListsArray: Array<Array<String>>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.e("NFC", "onCreate: ${intent.action}")
 
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         nfcPendingIntent = PendingIntent.getActivity(
@@ -34,15 +40,10 @@ class MainActivity : ComponentActivity() {
             Intent(this, javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_MUTABLE
         )
-        val ndef = IntentFilter(NfcAdapter.ACTION_NDEF_DISCOVERED).apply {
-            try {
-                addDataType("*/*")
-            } catch (e: IntentFilter.MalformedMimeTypeException) {
-                throw RuntimeException("fail", e)
-            }
-        }
-        intentFiltersArray = arrayOf(ndef)
-        techListsArray = arrayOf(arrayOf<String>(NfcF::class.java.name))
+        intentFiltersArray = arrayOf(
+            IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED),
+            IntentFilter(NfcAdapter.ACTION_NDEF_DISCOVERED),
+            IntentFilter(NfcAdapter.ACTION_TECH_DISCOVERED))
 
         setContent {
             NFCardTheme {
@@ -59,31 +60,61 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        nfcAdapter?.enableForegroundDispatch(this, nfcPendingIntent, intentFiltersArray, techListsArray)
+        Log.e("NFC", "onResume: ${intent.action}")
+
+        nfcAdapter?.enableForegroundDispatch(
+            this,
+            nfcPendingIntent,
+            intentFiltersArray,
+            null
+        )
+
+
     }
 
     override fun onPause() {
         super.onPause()
+        Log.e("NFC", "onPause")
+
         nfcAdapter?.disableForegroundDispatch(this)
+    }
+
+    private fun handleNfcIntent(intent: Intent?) {
+        Log.e("NFC", "handleNfcIntent: ${intent?.action}")
+
+        intent?.let {
+            if (NfcAdapter.ACTION_NDEF_DISCOVERED == it.action ||
+                NfcAdapter.ACTION_TAG_DISCOVERED == it.action ||
+                NfcAdapter.ACTION_TECH_DISCOVERED == it.action) {
+
+                val tag: Tag? = it.getParcelableExtra(NfcAdapter.EXTRA_TAG)
+                Log.e("NFC", "tag: $tag")
+
+                tag?.let {
+                    lifecycleScope.launch {
+                        processNfcTag(it)
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun processNfcTag(tag: Tag) {
+        Log.e("NFC", "processNfcTag: ${tag.id}")
+
+        withContext(Dispatchers.IO) {
+            val techList = tag.techList
+            for (tech in techList) {
+                Log.e("NFC", "tech: $tech")
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        Log.e("NFC", "onNewIntent: ${intent.action}")
 
-        print("NFC intent received: ${intent.action}")
-//
-//        if (NfcAdapter.ACTION_NDEF_DISCOVERED == intent.action) {
-//            print("NFC intent received")
-//            // Handle NFC intent
-//            intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)?.also { rawMessages ->
-//                val messages: List<NdefMessage> = rawMessages.map { it as NdefMessage }
-//                // Process the messages array.
-//                for (message in messages) {
-//                    // Process the individual message.
-//                    println(message)
-//                }
-//            }
-//        }
+        handleNfcIntent(intent)
     }
 }
 
