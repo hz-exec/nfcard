@@ -5,8 +5,14 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.nfc.NfcAdapter
 import android.nfc.Tag
+import android.nfc.tech.MifareClassic
+import android.nfc.tech.MifareUltralight
+import android.nfc.tech.Ndef
+import android.nfc.tech.NdefFormatable
 import android.nfc.tech.NfcA
+import android.nfc.tech.NfcB
 import android.nfc.tech.NfcF
+import android.nfc.tech.NfcV
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -28,6 +34,7 @@ class MainActivity : ComponentActivity() {
     private var nfcAdapter: NfcAdapter? = null
     private lateinit var nfcPendingIntent: PendingIntent
     private lateinit var intentFiltersArray: Array<IntentFilter>
+    private lateinit var techListsArray: Array<Array<String>>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,6 +51,17 @@ class MainActivity : ComponentActivity() {
             IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED),
             IntentFilter(NfcAdapter.ACTION_NDEF_DISCOVERED),
             IntentFilter(NfcAdapter.ACTION_TECH_DISCOVERED))
+
+        techListsArray = arrayOf(
+            arrayOf(NfcA::class.java.name),
+            arrayOf(NfcB::class.java.name),
+            arrayOf(NfcF::class.java.name),
+            arrayOf(NfcV::class.java.name),
+            arrayOf(Ndef::class.java.name),
+            arrayOf(NdefFormatable::class.java.name),
+            arrayOf(MifareClassic::class.java.name),
+            arrayOf(MifareUltralight::class.java.name)
+        )
 
         setContent {
             NFCardTheme {
@@ -66,10 +84,8 @@ class MainActivity : ComponentActivity() {
             this,
             nfcPendingIntent,
             intentFiltersArray,
-            null
+            techListsArray
         )
-
-
     }
 
     override fun onPause() {
@@ -77,6 +93,13 @@ class MainActivity : ComponentActivity() {
         Log.e("NFC", "onPause")
 
         nfcAdapter?.disableForegroundDispatch(this)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        Log.e("NFC", "onNewIntent: ${intent.action}")
+
+        handleNfcIntent(intent)
     }
 
     private fun handleNfcIntent(intent: Intent?) {
@@ -100,21 +123,144 @@ class MainActivity : ComponentActivity() {
     }
 
     private suspend fun processNfcTag(tag: Tag) {
-        Log.e("NFC", "processNfcTag: ${tag.id}")
+        Log.e("NFC", "processNfcTag")
 
         withContext(Dispatchers.IO) {
+            Log.e("NFC", "processNfcTag: ${tag.id}")
+
             val techList = tag.techList
             for (tech in techList) {
                 Log.e("NFC", "tech: $tech")
             }
+
+            readNdef(tag)
+            readNfcA(tag)
+            readNfcB(tag)
+            readNfcF(tag)
+            readNfcV(tag)
+            readMifareClassic(tag)
+            readMifareUltralight(tag)
+            readNdefFormatable(tag)
         }
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        Log.e("NFC", "onNewIntent: ${intent.action}")
+    private fun readNdef(tag: Tag) {
+        val ndef = Ndef.get(tag)
+        Log.e("NFC", "ndef: $ndef")
 
-        handleNfcIntent(intent)
+        ndef?.let {
+            ndef.connect()
+            val ndefMessage = ndef.ndefMessage
+            ndef.close()
+
+            Log.e("NFC", "ndefMessage: $ndefMessage")
+
+            ndefMessage?.let {
+                for (record in it.records) {
+                    Log.e("NFC", "record: ${String(record.payload)}")
+                }
+            }
+        }
+    }
+
+    private fun readNfcA(tag: Tag) {
+        val nfcA = NfcA.get(tag)
+        Log.e("NFC", "nfcA: $nfcA")
+
+        nfcA?.let {
+            nfcA.connect()
+            val atqa = nfcA.atqa
+            val sak = nfcA.sak
+            nfcA.close()
+
+            Log.e("NFC", "atqa: $atqa")
+            Log.e("NFC", "sak: $sak")
+        }
+    }
+
+    private fun readNfcB(tag: Tag) {
+        val nfcB = NfcB.get(tag)
+        Log.e("NFC", "nfcB: $nfcB")
+
+        nfcB?.let {
+            nfcB.connect()
+            val appData = nfcB.applicationData
+            val protInfo = nfcB.protocolInfo
+            nfcB.close()
+
+            Log.e("NFC", "appData: $appData")
+            Log.e("NFC", "protInfo: $protInfo")
+        }
+    }
+
+    private fun readNfcF(tag: Tag) {
+        val nfcF = NfcF.get(tag)
+        Log.e("NFC", "nfcF: $nfcF")
+
+        nfcF?.let {
+            nfcF.connect()
+            val systemCode = nfcF.systemCode
+            val manufacturer = nfcF.manufacturer
+            nfcF.close()
+
+            Log.e("NFC", "systemCode: $systemCode")
+            Log.e("NFC", "manufacturer: $manufacturer")
+        }
+    }
+
+    private fun readNfcV(tag: Tag) {
+        val nfcV = NfcV.get(tag)
+        Log.e("NFC", "nfcV: $nfcV")
+
+        nfcV?.let {
+            nfcV.connect()
+            val dsfId = nfcV.dsfId
+            val responseFlags = nfcV.responseFlags
+            nfcV.close()
+
+            Log.e("NFC", "dsfId: $dsfId")
+            Log.e("NFC", "responseFlags: $responseFlags")
+        }
+    }
+
+    private fun readMifareClassic(tag: Tag) {
+        val mifareClassic = MifareClassic.get(tag)
+        Log.e("NFC", "mifareClassic: $mifareClassic")
+
+        mifareClassic?.let {
+            mifareClassic.connect()
+            val size = mifareClassic.size
+            val type = mifareClassic.type
+            mifareClassic.close()
+
+            Log.e("NFC", "size: $size")
+            Log.e("NFC", "type: $type")
+        }
+    }
+
+    private fun readMifareUltralight(tag: Tag) {
+        val mifareUltralight = MifareUltralight.get(tag)
+        Log.e("NFC", "mifareUltralight: $mifareUltralight")
+
+        mifareUltralight?.let {
+            mifareUltralight.connect()
+            val type = mifareUltralight.type
+            mifareUltralight.close()
+
+            Log.e("NFC", "type: $type")
+        }
+    }
+
+    private fun readNdefFormatable(tag: Tag) {
+        val ndefFormatable = NdefFormatable.get(tag)
+        Log.e("NFC", "ndefFormatable: $ndefFormatable")
+
+        ndefFormatable?.let {
+            ndefFormatable.connect()
+            ndefFormatable.close()
+
+            Log.e("NFC", "format: success")
+        }
     }
 }
 
